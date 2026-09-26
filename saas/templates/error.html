@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include "_head.html" %}
+{% include "_style.html" %}
+</head>
+<body>
+<main id="content">
+  {% include "_brand.html" %}
+  <h1>{{ heading }}</h1>
+  <p class="lead">{{ message }}</p>
+  {% if hint %}<p class="muted">{{ hint }}</p>{% endif %}
+  <p style="margin-top:1.5rem">
+    <a class="btn" href="/">Try another reconciliation</a>
+    <a class="btn secondary" href="/contact">Contact</a>
+  </p>
+  <p class="muted" style="margin-top:1.5rem">Error {{ status }}.</p>
+</main>
+{% include "_footer.html" %}
+</body>
+</html>

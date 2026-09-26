@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include "_head.html" %}
+{% include "_style.html" %}
+</head>
+<body>
+<main id="content">
+  {% include "_brand.html" %}
+  <h1>Splashdown</h1>
+
+  {# Audience named, fear answered, licence stated. The previous sub-head described
+     the mechanism ("reconcile a settlement file against a bank statement") which is
+     the builder's framing, not the buyer's problem. #}
+  <p class="lead">
+    <strong>For merchants and accountants reconciling Razorpay payouts against bank credits.</strong>
+    Upload your settlement file and your bank CSV — get matched transactions, an exception
+    list, and Tally / GST / TDS code-1035 workpapers.
+  </p>
+  <p class="lead muted">
+    Razorpay, PayU, Cashfree, PhonePe and Juspay exports; HDFC, SBI, ICICI, Axis,
+    Kotak, PNB and DBS statements. Open source (MIT). Your files are used for this
+    one reconciliation only; the run record is deleted after 30 days. No account, no card.
+  </p>
+
+  <form action="/reconcile" method="post" enctype="multipart/form-data">
+    <label for="settlement_file">Settlement file
+      <input type="file" id="settlement_file" name="settlement_file" accept=".json,.csv,.txt,.tsv" required>
+    </label>
+
+    <label for="settlement_kind">Settlement kind
+      <select id="settlement_kind" name="settlement_kind">
+        <option value="razorpay_settlements">Razorpay — Fetch All Settlements (batch level)</option>
+        <option value="razorpay_recon">Razorpay — Settlement Recon (line-item level, unlocks GST + TDS)</option>
+        <option value="razorpay_settlement_csv">Razorpay — settlements CSV export (batch level)</option>
+        <option value="phonepe_settlement_csv">PhonePe — settlement report CSV</option>
+        <option value="juspay_settlement_csv">Juspay — settlement file CSV</option>
+        <option value="cashfree_settlement_csv">Cashfree — Settlement Recon report CSV</option>
+        <option value="cashfree_recon_csv">Cashfree — Settlement Recon, event section (line-item level)</option>
+        <option value="payu_settlement_range">PayU — /settlement/range API JSON (batch level)</option>
+        <option value="payu_transaction_details">PayU — /settlement/transactionDetails API JSON (line-item level)</option>
+      </select>
+    </label>
+    <p class="muted" style="margin:.5rem 0 0">
+      Pick the kind that matches your export. A line-item kind also produces the GST and
+      TDS workpapers; a batch kind gives the Tally CSV.
+    </p>
+
+    <label for="bank_file">Bank statement CSV
+      <input type="file" id="bank_file" name="bank_file" accept=".csv,.txt,.tsv" required>
+    </label>
+    <p class="muted" style="margin:.5rem 0 0">
+      We detect the UTR, amount and date columns automatically. If your statement uses
+      unusual headers, name them below.
+    </p>
+
+    <details>
+      <summary>Advanced — name the bank columns yourself</summary>
+      <label for="bank_utr_col">UTR / reference column
+        <input type="text" id="bank_utr_col" name="bank_utr_col" placeholder="auto-detect" autocomplete="off">
+      </label>
+      <label for="bank_amount_col">Amount column
+        <input type="text" id="bank_amount_col" name="bank_amount_col" placeholder="auto-detect" autocomplete="off">
+      </label>
+      <label for="bank_date_col">Date column
+        <input type="text" id="bank_date_col" name="bank_date_col" placeholder="auto-detect" autocomplete="off">
+      </label>
+      <p class="muted">Leave blank to auto-detect. Column names are case-insensitive and must match
+        your CSV header exactly otherwise.</p>
+    </details>
+
+    <button type="submit">Reconcile</button>
+  </form>
+
+  <div class="card">
+    <h2 style="margin-top:0">How the matching works</h2>
+    <ul class="plain">
+      <li><strong>It does not match on the UTR.</strong> Your bank statement carries the
+        correspondent bank's UTR, which is a different number from the gateway's
+        <code>settlement_utr</code>. The match key is the settlement id, with a
+        (date + net amount) fallback.</li>
+      <li><strong>Amounts are Decimal, in rupees.</strong> Gateway exports quote paise;
+        the conversion happens once, at parse time.</li>
+      <li><strong>Every match is inspectable.</strong> You get the matched ledger and the
+        exception list, not a score.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Your data</h2>
+    <p style="margin:0">
+      Nothing is kept beyond the run itself: the uploaded files are written to a private
+      temporary file, used, and deleted immediately. The run record (matched ledger,
+      exceptions, generated CSVs) is deleted after 30 days, automatically.
+      <a href="/privacy">Privacy</a> has the detail.
+    </p>
+  </div>
+
+  <p class="muted">
+    Currently supported: settlement exports from <strong>Razorpay</strong> (API JSON and
+    CSV), <strong>PayU</strong>, <strong>Cashfree</strong>, <strong>PhonePe</strong> and
+    <strong>Juspay</strong>, and bank statements from <strong>HDFC, SBI, ICICI, Axis,
+    Kotak, PNB and DBS</strong> (plus SBI PDFs). A format with no verified public sample
+    is refused, never guessed — the open ones are listed on <a href="/about">About</a>.
+  </p>
+
+</main>
+{% include "_footer.html" %}
+</body>
+</html>

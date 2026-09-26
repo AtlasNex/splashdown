@@ -1,0 +1,12 @@
+# Thin FastAPI SaaS for Splashdown. Bind to localhost only and expose via
+# Cloudflare Tunnel (or a reverse proxy) — never expose the port directly.
+# Port 8093 (8091 is already the trade-ui host port on the tunnel config).
+services:
+  splashdown-saas:
+    build: .
+    container_name: splashdown
+    ports:
+      - "127.0.0.1:8093:8000"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1

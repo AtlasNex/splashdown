@@ -1,0 +1,187 @@
+# Verified schemas (Phase 3)
+
+Every column map in `splashdown/schemas.py` traces here: the verbatim header
+row, the money unit, the date format, and the source. D-7: nothing below is
+invented. Sources are official sample files, official docs pages, or
+open-source parsers that read that exact vendor's real export. Cross-check
+`docs/DECISIONS.md` D-16/D-19 for the policy.
+
+## Gateways
+
+### Razorpay — Settlements report (wired)
+
+- Header (7 cols): `id, amount, status, fees, tax, utr, created_at`
+- Money unit: sample file shows decimal rupees (1.91); the API is paise. CSV
+  parser follows the sample (rupees).
+- Date: `YYYY-MM-DDTHH:MM:SS` (sample).
+- Source: official sample `razorpay.com/docs/build/browser/assets/images/sample-settlements-report.xlsx`
+  (linked from the "List of Reports" docs page).
+
+### Razorpay — Settlement Recon report (wired)
+
+- Header (27 cols): `transaction_entity, entity_id, amount, currency, fee (exclusive tax), tax, debit, credit, payment_method, card_type, issuer_name, entity_created_at, payment_captured_at, payment_notes, refund_notes, arn, entity_description, order_id, order_receipt, order_notes, dispute_id, dispute_created_at, dispute_reason, settlement_id, settled_at, settlement_utr, settled_by`
+- Money unit: sample shows decimal rupees (1.0, 0.01, 0.99); API JSON is paise.
+- Date: mixed `YYYY-MM-DDTHH:MM:SS` and `DD/MM/YYYY HH:MM:SS` — parser must accept both.
+- Note: header differs from the recon API keys (`transaction_entity`, `settled_by`,
+  `arn`, `payment_notes` don't exist in the API JSON).
+- Source: official sample `razorpay.com/docs/build/browser/assets/images/sample-settlements-recon-report.xlsx`.
+
+### Cashfree — Settlement Recon report (WIRED — both sections of the one file)
+
+- ONE file, TWO reports, separated by the marker line
+  `** Settlement Reconciliation Details **`:
+  - **Settlement batches (14 cols, verbatim from a real export):** `Id, Total Transaction Amount, Settlement Amount, Adjustment, Net Settlement Amount, From, Till, Status, UTR No., Settlement Date, Settlement Type, Settlement Charge, Settlement Tax, Remarks`
+  - **Event lines — 63 cols, NOT 48.** The earlier count in this file was wrong and
+    the correction matters, because a 48-column map silently drops 15 columns:
+    `Event Id, Event Type, Sale Type, Event Currency, Event Time, Processed On, Status, Event Amount, Event Settlement Amount, Settlement Date, UTR, Refund Type, Refund ARN, Adjustment Remarks, Merchant Reference Id, Customer Reference Id, CashFree Reference Id, Customer Name, Customer Phone, Customer Email, Currency, Transaction Amount, Transaction Service Charge, Txn ST/GST, Net Settlement Amount, Transaction Time, Payment Mode, Bank Name, Auth Id, Card Type (Scheme), Vendor ID 1..5, Vendor Amount 1..5, Key_1..Value_10, Surcharge Amount, Tax on Surcharge, Payment Mode SubType` (the first header is `Id`, not `ID`)
+- Money: rupees (2 decimals). Dates: `YYYY-MM-DD` (batches) and `YYYY-MM-DD HH:MM:SS` (events).
+- No debit/credit column pair and no batch-id column in the event section: direction is
+  `Sale Type ∈ {CREDIT, DEBIT}` applied to `Event Settlement Amount` (the money
+  movement, printed NEGATIVE on a refund), and a batch is identified by its `UTR` —
+  which is why `settlement_id_col` and `utr_col` both point at `UTR`.
+- Wired: `load_cashfree_recon_report(path) -> (list[Txn], list[ReconLine])`; the split
+  is `split_cashfree_recon_report(raw)`, which raises if the marker is absent.
+- Verified: the two header rows come from a real (header-only) committed export; the
+  data rows are synthetic (D-19 style) — `tests/fixtures/cashfree/`. The batch total and
+  the netted event total agree in that fixture, which is the check that catches a
+  direction flag applied to the gross column.
+- Source: the real file URL and the official per-column sample values are in
+  `docs/RESEARCH-gateway-samples.md` §1a/§1b.
+
+### PayU — settlement data (WIRED through the two official APIs; the CSV export is un-wireable BY DESIGN)
+
+- The dashboard export lets the merchant pick the columns per report, so **no fixed
+  public header can ever exist** — that is why every search for a PayU settlement CSV
+  came back empty, and it is a property of the format, not a gap in the search. Closed.
+- Public instead, and wired:
+  - `GET /settlement/range` — UTR-level (`settlementId, settlementCompletedDate,
+    settlementAmount, merchantId, utrNumber, transactionAmount, adjustmentAmount,
+    refundAmount, chargebackAmount, refundReversalAmount, chargebackReversalAmount,
+    serviceFee, serviceTax, additionalServiceFee, additionalServiceTax,
+    numberOfTransactions, transaction[]`, plus `additionalTdrFee/Tax`,
+    `totalServiceTax`, `totalProcessingFee`, `transaction/settlementCurrency`).
+    Rupee **strings**; `YYYY-MM-DD HH:MM:SS[.ffffff]`. → `parse_payu_settlement_range`.
+  - `GET /settlement/transactionDetails` — per transaction
+    (`merchantId, merchantTransactionId, payuId, transactionType, settlementStatus,
+    settlementUTR, settlementDate, settlementId, settlementAmount`). `settlementAmount`
+    is a JSON **number** and **signed** (refunds/chargebacks negative);
+    `settlementDate` is `YYYY-MM-DDTHH:MM:SS`; `settlementStatus ∈ {Settled, Pending,
+    On Hold, Failed}`. → `parse_payu_transaction_details`.
+  - Both fail closed: PayU's `status: 1` envelope raises, an unknown field raises (D-7).
+- Sources: `docs.payu.in/reference/settlement-detail-range-api.md`,
+  `docs.payu.in/reference/settlement_transaction_details_api.md`,
+  `docs.payu.in/docs/export-the-settlement-records` (the column picker).
+
+### PhonePe — settlement report (WIRED — aggregated per bank credit)
+
+- 15-col and 23-col real exports (23-col adds `MerchantOrderId, OriginalMerchantReferenceId,
+  OriginalTransactionId, OriginalTransactionDate, TransactionUTR, StoreId, StoreName,
+  TerminalId, TerminalName`). Note the header names differ from PhonePe's docs table,
+  and the docs' `Instrument` enum is the online/Switch vocabulary — real files use
+  `*_FULFILMENT` values. Parse by header name, never position.
+- Money: rupees (2 decimals); fee and taxes are negative-valued;
+  `Settled amount = Amount + Fee + IGST + CGST + SGST`.
+- Wired: `load_phonepe_settlement_csv` aggregates rows per `BankReferenceNo` (the
+  settlement UTR) before matching. **One thing is still unverified:** the aggregate has
+  never been compared against a real bank credit for the same settlement.
+- Source: `developer.phonepe.com/docs/settlements`; real files in RESEARCH §2a/§2c.
+
+### Juspay — settlement file (WIRED, with its limits stated in the loader)
+
+- 25 cols (official): `Merchant ID, Transaction Amount, Fee, Tax, Credit, Debit,
+  Settlement Date, UPI Request Id, Transaction Type, Type, SS Adjustment Type,
+  SS Credit/Debit, Transaction Date, Account Number, Status, Payer Vpa, Payee Vpa, RRN,
+  Settlement Status, Order ID, Transaction Description, Account Type, Sub Merchant ID,
+  Refund Request Id, MCC`
+- Money: the docs say only "Integer"; Juspay's own production parser reads plain rupee
+  decimals → **rupees**, vendor-code corroboration, NOT documented.
+- Dates: `dd/mm/yyyy`. `Settlement Status ∈ {Sent for settlement, Settled, Pending, Failed}`;
+  only `Settled` means the funds reached the bank, and the loader filters on that.
+- Wired: `load_juspay_settlement_csv` nets rows per bank credit, grouping by `UTR Number`
+  when the header has one (the variant Juspay's own parser reads) and otherwise by
+  `Settlement Date` — the documented schema has **no** batch-id and **no** UTR column.
+- Still unverified on a real populated file: the rupee unit, one-date-equals-one-credit,
+  and the status filter. See the loader docstring.
+- Source: `juspay.io/pe/docs/upi-merchant-stack-pe/docs/resources/settlement-files`;
+  the vendor parser's header names are recorded in RESEARCH §3b (transcribed, never copied).
+
+## Bank statements (wired)
+
+All: INR, plain decimal, no ₹ symbol. Two-column debit/credit, one populated
+per row. Header may sit below preamble rows — the loader detects it by matching
+the date+debit+credit names (HDFC ~2-3 rows, Axis ~row 20).
+
+| Bank | Header (verbatim) | Date format | Sources |
+|---|---|---|---|
+| HDFC | `Date, Narration, Chq./Ref.No., Value Dt, Withdrawal Amt., Deposit Amt., Closing Balance` | `dd/mm/yy` (some `dd/mm/yyyy`) | RajaBabu15/stmt `fixtures/hdfc_csv.csv`; pratik1235/burnrate; kamthamc/wealth-wise; suryanshsrivastava/fipro |
+| SBI | `Txn Date, Value Date, Description, Ref No./Cheque No., Debit, Credit, Balance` | `dd/mm/yyyy` or `dd MMM yyyy` | Jayeshecs/money-insight `sbi_savings.rs`+fixture; RajaBabu15/stmt `fixtures/sbi_csv.csv` |
+| ICICI | `S No., Value Date, Transaction Date, Cheque Number, Transaction Remarks, Withdrawal Amount(INR), Deposit Amount(INR), Balance(INR)` | `dd-MMM-yyyy` or `dd/mm/yyyy` | khanfarhan10/bank-ledger-dashboard `icici_excel_parser.py`; burnrate; sandy-ms/financebot |
+| Axis | `Tran Date, CHQNO, PARTICULARS, DR, CR, BAL, SOL` | `dd-MM-yyyy` | pratik1235/burnrate `axis_bank_csv.py`; sagarbehere/finzytrack `axis-bank-nro.yaml` |
+| Kotak | Variant A: `Transaction Date, Description, Chq./Ref.No., Withdrawal Amt., Deposit Amt., Closing Balance` | `dd-MM-yyyy` | omprakash201194/spend-stack `kotak/csv-parser.ts` |
+| Kotak | Variant B: `Serial, Transaction date, Value date, Description, Chq / Ref No., Debit amount, Credit amount, Balance, Dr/Cr` | `%d-%m-%Y` | jasimmk/bankii `in_kotak.py` |
+| PNB | `Transaction Date, Cheque Number, Withdrawal, Deposit, Balance, Narration` (collapsed columns — sign from running balance) | `YYYY/MM/DD` | raptar231 `fixtures/pnb/pnb_savings-may-2023.txt` |
+| DBS | `Date, Transaction Details, Withdrawal (INR), Deposit (INR), Balance (INR)` (collapsed columns — sign from running balance) | `DD/MM/YYYY` | raptar231 `fixtures/dbs/dbs_savings-may-2019.txt` |
+
+Notes: SBI native download is tab-separated ".xls" with BOM/CRLF and an
+`OPENING BALANCE` row (skipped by the loader). ICICI has no native CSV export
+(Excel/ZIP only); the "CSV" users get is the Excel saved-as-CSV. Kotak variant
+B (bankii) is wired (ATL-90): the two-column map + Dr/Cr flag, transcribed from
+jasimmk/bankii `in_kotak.py`, is auto-detected in `load_bank_statement` by the
+"Debit amount"/"Credit amount" headers. Parse-from-real-file verification is
+pending a real bankii export (D-7). PNB/DBS use separate Withdrawal/Deposit
+columns whose blank cells collapse in the extracted text, so the sign is
+recovered from running-balance arithmetic (`parse_bank_text`, D-23), not a
+two-column map.
+
+Kotak also ships a **combined-amount** netbanking statement:
+`Date, Narration, Chq/Ref No., Withdrawal (Dr) / Deposit (Cr), Balance` — a
+single amount column with an explicit Dr/Cr marker ("347.00 Dr" = debit,
+"35,000.00 Cr" = credit). `load_bank_statement` auto-detects this layout
+(header carries "(Dr)" and "(Cr)") and routes to `parse_drcr_statement` (D-22).
+Source: `raptar231` fixture `tests/fixtures/kotak/kotak_savings-jul-2025.txt`.
+
+## Bank statements (PDF / text, SBI — YONO, netbanking, credit card)
+
+An SBI statement usually arrives as a PDF, not a CSV. `splashdown/pdf.py` parses three
+SBI layouts from the text layer, auto-dispatched by `parse_sbi_statement`:
+
+- **YONO / e-statement** (modern default): `Date, Transaction Reference,
+  Ref.No./Chq.No., Credit, Debit, Balance` (Credit before Debit). Rows are
+  reconstructed from the trailing money columns; narrations may wrap.
+- **Legacy netbanking**: `Txn Date, Value Date, Description, Ref No./Cheque
+  No., Debit, Credit, Balance`; dates are `dd MMM` with the year split onto a
+  following `yyyy yyyy` line (PDF text-extraction artifact). Sign from
+  description heuristics (BY = credit, TO = debit).
+- **Credit card**: `Date, Description, Amount (Rs.)`; payments/refunds carry a
+  trailing `Cr` marker (credit), everything else is debit.
+
+Money: INR rupees, plain decimal. Password-locked PDFs -> `PdfEncryptedError`;
+image-only (scanned) PDFs -> `PdfScannedError` (OCR is a separate unbuilt
+layer). Source: anonymised text fixtures from the Apache-2.0
+`raptar231/indian-bank-statement-parser` (`tests/fixtures/sbi/`, see NOTICE.md).
+
+---
+
+## 2026-09-11 research update — D-24 was partly wrong
+
+Full evidence (URLs, verbatim headers, what was searched and failed) lives in
+**`docs/RESEARCH-gateway-samples.md`**. Read that before re-running any of this search.
+Summary of what changed:
+
+| Target | Was | Now |
+|---|---|---|
+| **PhonePe settlement** | `None` — "tax columns + undocumented type values, real file needed" | **WIRED.** Two real publicly committed merchant exports exist (15-col and 23-col variants). Column names are verbatim above; `BankReferenceNo` is the settlement UTR. Because the file is per-transaction and a bank credit is per-settlement, `load_phonepe_settlement_csv()` nets `Amount + Fee + IGST + CGST + SGST` per `BankReferenceNo`. Tested against a synthetic fixture (`tests/fixtures/phonepe/`). **Caveat: the aggregate has never been checked against a real bank credit.** |
+| **Cashfree recon** | 48 columns | **63 columns.** A real (header-only) export proves it: section 1 is 14 cols with first header literally `Id`; section 2 is 63 (`Key_4..Key_10`, `Surcharge Amount`, `Tax on Surcharge`, `Payment Mode SubType`). Section marker: `** Settlement Reconciliation Details **`. **WIRED** (2026-09-11 session 15) — `load_cashfree_recon_report()` splits the file and reads each section through its own map; both maps are filled (`cashfree_settlement_csv`, `cashfree_recon_csv`) and the fixture's netted event total equals its batch total. |
+| **Cashfree plain settlements** | "not public" | Still absent, but the page-level doc confirms no per-column table exists → use the documented `GET /settlements` JSON API instead. |
+| **PayU settlement** | "needs a real dashboard export" | **Permanently un-findable as CSV** — the export's columns are user-selectable in a dashboard dialog, so no fixed public header can exist. Two *official APIs* have complete documented sample JSON (`/settlement/range`, `/settlement/transactionDetails`) → **WIRED as API parsers** (2026-09-11 session 15), not a CSV map; `payu_settlement_csv` stays `None` by design. |
+| **Juspay settlement** | "money unit unstated" | 25-column official schema page is fully fetchable (no JS wall) with enums and status maps. Money unit is still officially "Integer"; Juspay's own production parser reads the values as plain rupee decimals → **rupees**, verdict-corrobation. **WIRED** (2026-09-11 session 15) as `load_juspay_settlement_csv` — per-bank-credit netting, both file variants, with the rupee unit, the date-grouping for the no-UTR variant, and the status filter all still unverified against a real populated file. |
+| **IDFC** | No verified source | Confirmed: **no real IDFC file or official sample exists publicly** (four production PDF parsers corroborate the same text layout, but all four test against hand-written mock text, and the two community CSV claims contradict each other). The `idfc: None` entry is correct and should stay; the four source URLs are listed in the research doc so this search is not repeated. |
+
+### Non-negotiables the research reinforced
+
+- The real PhonePe/Cashfree files contain a **named merchant's real UTRs and order
+  references**. They must never be vendored here — hence the synthetic fixture with a
+  real header. Copying them would re-publish someone else's financial data.
+- `nammayatri/shared-kernel` is AGPL-3.0 (Juspay's own): transcribe column *names*, never code.
+- Repos with no license (`GunalThiru/KCMS`, `suryaansh001/sabrang_self_backend`, `mdsdqk/nook`):
+  headers and value semantics are facts and are fine to record; files are not.

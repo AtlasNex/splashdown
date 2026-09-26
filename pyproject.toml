@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "splashdown"
+version = "0.8.0"
+description = "Open-source UPI settlement reconciliation: gateway payout file vs bank credit, with Tally/GST/TDS-1035 workpapers. Stdlib-only core."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "AtlasNex", email = "hello@atlasnex.com" }]
+keywords = [
+    "upi", "settlement-reconciliation", "razorpay", "payu", "cashfree",
+    "phonepe", "juspay", "bank-statement", "tally", "gst", "tds", "194o",
+    "fintech", "india", "accounting", "npci",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Accounting",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+# The thin SaaS layer (saas/) only. The library itself stays stdlib-only
+# (CONSTRAINTS.md #6) — these deps are NOT required to use the OSS core.
+saas = ["fastapi>=0.110", "uvicorn[standard]>=0.29", "jinja2>=3.1", "python-multipart>=0.0.9"]
+# Optional PDF bank-statement extraction (splashdown.pdf). The core stays
+# stdlib-only; pymupdf is imported lazily only when a PDF is parsed.
+pdf = ["pymupdf>=1.24"]
+# Optional OCR for SCANNED (image-only) PDFs (splashdown.ocr). pymupdf rasterises
+# pages; the Tesseract engine is invoked via its CLI (system binary, not pip).
+ocr = ["pymupdf>=1.24"]
+
+[project.urls]
+Homepage = "https://splashdown.atlasnex.com"
+Repository = "https://github.com/AtlasNex/splashdown"
+Documentation = "https://github.com/AtlasNex/splashdown/tree/master/docs"
+Issues = "https://github.com/AtlasNex/splashdown/issues"
+Changelog = "https://github.com/AtlasNex/splashdown/blob/master/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+include = ["splashdown*"]

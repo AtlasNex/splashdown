@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.idea/
+.vscode/
+
+# SaaS runtime artifacts (thin SaaS layer, not part of the library)
+saas/splashdown.db
+saas/upload_*.csv
+
+# Local deploy target. The origin host is deliberately NOT committed: this repo is
+# public and the origin IP is not in public DNS, so publishing it would hand out a
+# route that bypasses the Cloudflare rules in front of the origin.
+scripts/.deploy.env
+
+# generated intermediate for the brand raster pipeline (not shipped)
+saas/static/favicon-src.png
+
+# board/release scratch files
+.atl-*.tmp.md

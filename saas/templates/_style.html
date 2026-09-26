@@ -1,0 +1,113 @@
+{# Splashdown UI. Every fg/bg pair passes WCAG 2.2 AA, computed (see
+   docs/UI-AUDIT.md): ≥4.5:1 for text, ≥3:1 for UI boundaries. The dark block
+   overrides ONLY what changes — an earlier build left .ok/.warn/.danger
+   unoverridden, so status colours failed on the dark background, which is
+   exactly the "whack contrast" complaint. Status is additionally never
+   carried by colour alone: the stat numbers sit under text labels. #}
+<style>
+  @font-face { font-family: "Sora"; font-weight: 600; font-display: swap; src: url("/static/fonts/sora-latin-600-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Hanken Grotesk"; font-weight: 400; font-display: swap; src: url("/static/fonts/hanken-grotesk-latin-400-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Hanken Grotesk"; font-weight: 600; font-display: swap; src: url("/static/fonts/hanken-grotesk-latin-600-normal.woff2") format("woff2"); }
+  @font-face { font-family: "JetBrains Mono"; font-weight: 400; font-display: swap; src: url("/static/fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2"); }
+  /* AtlasNex v2 tokens (0.8.0). Ratios computed, see docs/UI-AUDIT.md. */
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --surface: #f6f4ef;      /* Starlight */
+    --surface-2: #edeae2;
+    --text: #0a1631;         /* Deep Space: 17.92:1 on white */
+    --muted: #5b6470;        /* 6.00:1 on white, 5.46:1 on Starlight */
+    --line: #ddd9cf;
+    --line-input: #8a93a0;   /* 3.11:1 vs bg - WCAG UI-component boundary */
+    --accent: #0b6f78;       /* Splashdown teal, deepened for text: 5.90:1 on white; white on it 5.90:1 */
+    --accent-press: #085a62;
+    --accent-ink: #ffffff;
+    --beacon: #22a6b3;       /* the product beacon, decoration only (never text on white) */
+    --ok: #0d7a33;
+    --warn: #8a5000;
+    --danger: #b00020;
+    --focus: #0b6f78;
+    --radius: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #060e22;         /* Midnight */
+      --surface: #0a1631;    /* Deep Space */
+      --surface-2: #12213f;
+      --text: #f6f4ef;       /* Starlight: 17.47:1 */
+      --muted: #a9b1c4;      /* 8.34:1 on Deep Space */
+      --line: #22304f;
+      --line-input: #6b7891; /* 4.03:1 on Deep Space */
+      --accent: #22a6b3;     /* 6.56:1 on Midnight */
+      --accent-press: #5fd0db;
+      --accent-ink: #060e22; /* 6.56:1 on the teal */
+      --beacon: #22a6b3;
+      --ok: #5cd685;
+      --warn: #f0b95c;
+      --danger: #ff8080;
+      --focus: #5fd0db;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 860px; margin: 0 auto; padding: 1.75rem 1.25rem 4rem;
+    color: var(--text); background: var(--bg); line-height: 1.55;
+  }
+  h1, h2, h3, .brand b { font-family: "Sora", system-ui, sans-serif; font-weight: 600; }
+  h1 { font-size: 1.9rem; margin: 0 0 .4rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.18rem; margin: 2.1rem 0 .6rem; letter-spacing: -.01em; }
+  h3 { font-size: 1rem; margin: 1.4rem 0 .4rem; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:hover { color: var(--accent-press); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+  .muted { color: var(--muted); font-size: .875rem; }
+  .lead { font-size: 1.02rem; margin: 0 0 1.25rem; max-width: 65ch; }
+  form { margin: 0; }
+  label { display: block; margin-top: 1rem; font-weight: 600; font-size: .9rem; }
+  input[type=file], input[type=text], input[type=email], select {
+    width: 100%; padding: .6rem .65rem; margin-top: .35rem; font: inherit;
+    border: 1px solid var(--line-input); border-radius: 6px;
+    background: var(--bg); color: var(--text);
+  }
+  input[type=file] { padding: .5rem; }
+  input[type=file]::file-selector-button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    padding: .45rem .9rem; margin-right: .8rem;
+    border: 1px solid var(--accent); border-radius: 6px;
+    background: var(--accent); color: var(--accent-ink);
+  }
+  input::placeholder { color: var(--muted); opacity: 1; }
+  input:hover, select:hover { border-color: var(--text); }
+  button, .btn {
+    display: inline-block; margin: 1.4rem .5rem 0 0; padding: .68rem 1.35rem; font: inherit;
+    font-weight: 600; cursor: pointer; border: 1px solid var(--accent); border-radius: 6px;
+    background: var(--accent); color: var(--accent-ink); text-decoration: none;
+  }
+  button:hover, .btn:hover { background: var(--accent-press); border-color: var(--accent-press); color: var(--accent-ink); }
+  .btn.secondary { background: transparent; color: var(--text); border-color: var(--line-input); font-weight: 500; }
+  .btn.secondary:hover { border-color: var(--text); background: var(--surface); }
+  details { margin-top: 1.2rem; border: 1px solid var(--line); border-radius: 6px; padding: .65rem .85rem; background: var(--bg); }
+  details summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+  .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.15rem; margin: 1.1rem 0; background: var(--surface); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; margin: 1rem 0; }
+  .stat { border: 1px solid var(--line); border-radius: var(--radius); padding: .75rem .85rem; background: var(--bg); }
+  .stat .n { font-size: 1.55rem; font-weight: 700; display: block; line-height: 1.2; }
+  .stat .k { font-size: .76rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; margin: .6rem 0; font-size: .9rem; }
+  th, td { border-bottom: 1px solid var(--line); padding: .55rem .5rem; text-align: left; vertical-align: top; }
+  th { background: var(--surface); font-size: .76rem; text-transform: uppercase; letter-spacing: .05em; }
+  code { font-family: "JetBrains Mono", ui-monospace, monospace; background: var(--surface-2); padding: .1rem .35rem; border-radius: 4px; font-size: .9em; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .danger { color: var(--danger); font-weight: 600; }
+  footer { margin-top: 3.5rem; padding-top: 1.1rem; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+  footer a { margin-right: .9rem; color: var(--accent); }
+  ul.plain { padding-left: 1.15rem; }
+  .brand { display: inline-flex; align-items: center; gap: .55rem; text-decoration: none; margin-bottom: 1.35rem; }
+  .brand svg { display: block; }
+  .brand b { font-size: 1.12rem; color: var(--text); letter-spacing: -.02em; }
+  .brand .by { font-size: .78rem; color: var(--muted); }
+  .brand .beacon { width: 8px; height: 8px; border-radius: 50%; background: var(--beacon); display: inline-block; }
+</style>
